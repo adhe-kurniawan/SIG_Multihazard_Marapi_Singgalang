@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SIG Multi-Hazard — Marapi-Singgalang</title>
+<style>
+  :root{
+    --bg:#f4f1e8; --panel:#ffffff; --ink:#22281f; --muted:#6b7062;
+    --primary:#2E5339; --gold:#B08B4F; --border:#d8d3c2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#171a15; --panel:#20241d; --ink:#eef0e8; --muted:#a3ab97; --border:#333a2c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#171a15; --panel:#20241d; --ink:#eef0e8; --muted:#a3ab97; --border:#333a2c;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--ink);
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  header{padding:14px 18px 8px; text-align:center;}
+  header h1{margin:0; font-size:1.15rem; color:var(--primary);}
+  header p{margin:2px 0 0; font-size:.8rem; color:var(--muted);}
+  .wrap{max-width:920px; margin:0 auto; padding:0 12px 20px;}
+  .controls{
+    display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:10px 0 14px;
+  }
+  button.layerBtn{
+    border:1px solid var(--border); background:var(--panel); color:var(--ink);
+    padding:7px 13px; border-radius:20px; font-size:.78rem; cursor:pointer;
+  }
+  button.layerBtn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+  .mapbox{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:6px; position:relative; overflow:hidden;
+  }
+  svg{width:100%; height:auto; display:block;}
+  .kec-dot{cursor:pointer; stroke:#fff; stroke-width:1.2;}
+  .kec-label{font-size:9px; fill:var(--ink); pointer-events:none;}
+  .st-marker{fill:#C0392B; stroke:#fff; stroke-width:1;}
+  .volcano{fill:#7B241C; stroke:#fff; stroke-width:1;}
+  .river{stroke:#7FB3D5; stroke-width:1.6; fill:none; opacity:.75;}
+  .legend{
+    background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; font-size:.75rem; margin-top:10px;
+  }
+  .legend b{color:var(--primary); font-size:.8rem;}
+  .legend-row{display:flex; align-items:center; gap:6px; margin-top:4px;}
+  .swatch{width:12px; height:12px; border-radius:3px; flex-shrink:0;}
+  .grad{height:10px; border-radius:5px; margin-top:4px;
+        background:linear-gradient(90deg,#2E7D32,#F1C40F,#E67E22,#C0392B);}
+  .scale-labels{display:flex; justify-content:space-between; font-size:.68rem; color:var(--muted);}
+  #tip{
+    position:absolute; background:rgba(20,24,18,.92); color:#fff; padding:6px 9px;
+    border-radius:6px; font-size:.72rem; pointer-events:none; display:none; max-width:180px; z-index:5;
+  }
+  footer{text-align:center; font-size:.68rem; color:var(--muted); margin-top:10px; padding-bottom:6px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🗺️ SIG Multi-Hazard — DAS Marapi–Singgalang</h1>
+  <p>Sistem Informasi Geografis · Kerentanan Banjir, Longsor &amp; Galodo per Kecamatan</p>
+</header>
+<div class="wrap">
+  <div class="controls" id="controls"></div>
+  <div class="mapbox">
+    <div id="tip"></div>
+    <svg id="map" viewBox="0 0 760 620" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div class="legend" id="legend"></div>
+  <footer>Data sintetis untuk riset &amp; demonstrasi metodologi · Ade Kurniawan, M.Kom. · 2026</footer>
+</div>
+
+<script>
+const KEC = [
+{nama:"Sungai Pua",kab:"Agam",lat:-0.3167,lon:100.3833,banjir:.189,longsor:.378,galodo:.361,elevasi:2274,slope:19.9},
+{nama:"Canduang",kab:"Agam",lat:-0.34,lon:100.41,banjir:.249,longsor:.414,galodo:.529,elevasi:2422,slope:21.6},
+{nama:"Banuhampu",kab:"Agam",lat:-0.335,lon:100.36,banjir:.487,longsor:.376,galodo:.682,elevasi:2655,slope:23.7},
+{nama:"Malalak",kab:"Agam",lat:-0.36,lon:100.31,banjir:.307,longsor:.524,galodo:.636,elevasi:2685,slope:26.9},
+{nama:"Palupuh",kab:"Agam",lat:-0.25,lon:100.32,banjir:.164,longsor:.426,galodo:.354,elevasi:2040,slope:21.1},
+{nama:"Lubuk Basung",kab:"Agam",lat:-0.305,lon:100.145,banjir:.122,longsor:.361,galodo:.187,elevasi:1696,slope:14.2},
+{nama:"X Koto",kab:"Tanah Datar",lat:-0.42,lon:100.43,banjir:.305,longsor:.399,galodo:.612,elevasi:2431,slope:22.8},
+{nama:"Batipuh",kab:"Tanah Datar",lat:-0.445,lon:100.455,banjir:.457,longsor:.58,galodo:.784,elevasi:2546,slope:29.1},
+{nama:"Sepuluh Koto",kab:"Tanah Datar",lat:-0.40,lon:100.53,banjir:.423,longsor:.437,galodo:.59,elevasi:2493,slope:23.2},
+{nama:"Padang Panjang Barat",kab:"Kota Padang Panjang",lat:-0.455,lon:100.395,banjir:.17,longsor:.372,galodo:.341,elevasi:2073,slope:21.3},
+{nama:"Padang Panjang Timur",kab:"Kota Padang Panjang",lat:-0.46,lon:100.42,banjir:.198,longsor:.349,galodo:.436,elevasi:2199,slope:18.5},
+{nama:"Sungai Geringging",kab:"Padang Pariaman",lat:-0.32,lon:100.12,banjir:.122,longsor:.361,galodo:.187,elevasi:1696,slope:14.2},
+{nama:"Batang Anai",kab:"Padang Pariaman",lat:-0.54,lon:100.32,banjir:.115,longsor:.395,galodo:.256,elevasi:1695,slope:19.3},
+{nama:"IV Koto Aur Malintang",kab:"Padang Pariaman",lat:-0.22,lon:100.18,banjir:.099,longsor:.349,galodo:.165,elevasi:1360,slope:17.1},
+];
+const STASIUN = [
+{nama:"Bukittinggi",lat:-0.305,lon:100.3692},{nama:"Padang Panjang",lat:-0.46,lon:100.402},
+{nama:"Batusangkar",lat:-0.45,lon:100.58},{nama:"Lubuk Basung",lat:-0.305,lon:100.145},
+{nama:"Pariaman",lat:-0.34,lon:100.155}];
+const VOLCANO = [{nama:"G. Marapi",lat:-0.38,lon:100.473},{nama:"G. Singgalang",lat:-0.3833,lon:100.3333}];
+
+const LAT_MIN=-0.58, LAT_MAX=-0.18, LON_MIN=100.08, LON_MAX=100.62;
+const W=760,H=620,PAD=40;
+function X(lon){return PAD+(lon-LON_MIN)/(LON_MAX-LON_MIN)*(W-2*PAD);}
+function Y(lat){return PAD+(LAT_MAX-lat)/(LAT_MAX-LAT_MIN)*(H-2*PAD-30);}
+
+function colorScale(v){
+  const stops=[[0,[46,125,50]],[.4,[241,196,15]],[.7,[230,126,34]],[1,[192,57,43]]];
+  for(let i=0;i<stops.length-1;i++){
+    const [p0,c0]=stops[i],[p1,c1]=stops[i+1];
+    if(v>=p0 && v<=p1){
+      const t=(v-p0)/(p1-p0);
+      const c=c0.map((c0v,idx)=>Math.round(c0v+t*(c1[idx]-c0v)));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    }
+  }
+  return v<0? `rgb(46,125,50)` : `rgb(192,57,43)`;
+}
+function domClass(k){
+  const m=Math.max(k.banjir,k.longsor,k.galodo);
+  if(m<0.4) return {label:"AMAN",color:"#2E5339"};
+  if(k.galodo===m) return {label:"GALODO",color:"#C0392B"};
+  if(k.longsor===m) return {label:"LONGSOR",color:"#D68910"};
+  return {label:"BANJIR",color:"#2E86C1"};
+}
+
+const LAYERS = {
+  dominan:{title:"Status Dominan Multi-Hazard", type:"cat"},
+  banjir:{title:"Kerentanan Banjir", type:"grad", key:"banjir"},
+  longsor:{title:"Kerentanan Longsor", type:"grad", key:"longsor"},
+  galodo:{title:"Kerentanan Galodo", type:"grad", key:"galodo"},
+  elevasi:{title:"Elevasi (m)", type:"grad", key:"elevasi", min:1300, max:2700},
+  slope:{title:"Kemiringan Lereng (°)", type:"grad", key:"slope", min:14, max:30},
+};
+let current="dominan";
+
+const svg=document.getElementById("map");
+const tip=document.getElementById("tip");
+
+function riverPath(a){
+  const mx=X(VOLCANO[0].lon), my=Y(VOLCANO[0].lat);
+  const ex=X(VOLCANO[0].lon+Math.cos(a)*0.45), ey=Y(VOLCANO[0].lat+Math.sin(a)*0.45);
+  const cx=(mx+ex)/2+15*Math.sin(a), cy=(my+ey)/2+15*Math.cos(a);
+  return `M${mx},${my} Q${cx},${cy} ${ex},${ey}`;
+}
+
+function render(){
+  let svgHtml = `<rect x="0" y="0" width="${W}" height="${H}" fill="none"/>`;
+  // sungai skematik
+  [0.3,1.0,1.8,2.5,3.3,4.1,5.0,5.7].forEach(a=>{
+    svgHtml += `<path class="river" d="${riverPath(a)}"/>`;
+  });
+  // gunung berapi
+  VOLCANO.forEach(v=>{
+    const x=X(v.lon), y=Y(v.lat);
+    svgHtml += `<polygon class="volcano" points="${x},${y-11} ${x-9},${y+7} ${x+9},${y+7}"/>`;
+    svgHtml += `<text class="kec-label" x="${x}" y="${y+20}" text-anchor="middle" font-weight="bold">${v.nama}</text>`;
+  });
+  // stasiun BMKG
+  STASIUN.forEach(s=>{
+    const x=X(s.lon), y=Y(s.lat);
+    svgHtml += `<rect class="st-marker" x="${x-4}" y="${y-4}" width="8" height="8" transform="rotate(45 ${x} ${y})"><title>Stasiun BMKG ${s.nama}</title></rect>`;
+  });
+  // kecamatan
+  KEC.forEach(k=>{
+    const x=X(k.lon), y=Y(k.lat);
+    let fill, label;
+    const L=LAYERS[current];
+    if(L.type==="cat"){ const d=domClass(k); fill=d.color; label=d.label; }
+    else {
+      let v=k[L.key];
+      if(L.min!==undefined) v=(v-L.min)/(L.max-L.min);
+      fill=colorScale(Math.max(0,Math.min(1,v)));
+      label=L.key==="elevasi"?k.elevasi+" m":L.key==="slope"?k.slope+"°":(k[L.key]*100).toFixed(0)+"%";
+    }
+    svgHtml += `<circle class="kec-dot" cx="${x}" cy="${y}" r="10" fill="${fill}"
+                 onmousemove="showTip(event,'${k.nama.replace(/'/g,"")}','${k.kab}','${label}')"
+                 onmouseleave="hideTip()"/>`;
+    svgHtml += `<text class="kec-label" x="${x}" y="${y-13}" text-anchor="middle">${k.nama}</text>`;
+  });
+  // dekorasi: panah utara + skala
+  svgHtml += `<g transform="translate(${W-50},35)">
+      <line x1="0" y1="18" x2="0" y2="-10" stroke="var(--ink)" stroke-width="1.6"/>
+      <polygon points="0,-16 -6,-4 6,-4" fill="var(--ink)"/>
+      <text x="0" y="30" text-anchor="middle" font-size="10" fill="var(--ink)">U</text></g>`;
+  const barX=W-160, barY=H-25;
+  svgHtml += `<g transform="translate(${barX},${barY})">
+      <line x1="0" y1="0" x2="60" y2="0" stroke="var(--ink)" stroke-width="2"/>
+      <text x="30" y="-4" text-anchor="middle" font-size="9" fill="var(--ink)">≈ 10 km</text></g>`;
+  svg.innerHTML = svgHtml;
+  renderLegend();
+}
+
+function renderLegend(){
+  const L=LAYERS[current];
+  const el=document.getElementById("legend");
+  if(L.type==="cat"){
+    el.innerHTML = `<b>${L.title}</b>
+      <div class="legend-row"><span class="swatch" style="background:#2E5339"></span> AMAN</div>
+      <div class="legend-row"><span class="swatch" style="background:#2E86C1"></span> BANJIR dominan</div>
+      <div class="legend-row"><span class="swatch" style="background:#D68910"></span> LONGSOR dominan</div>
+      <div class="legend-row"><span class="swatch" style="background:#C0392B"></span> GALODO dominan</div>
+      <div class="legend-row" style="margin-top:6px;">◆ <span style="color:var(--muted)">Stasiun BMKG</span> &nbsp; ▲ <span style="color:var(--muted)">Gunung berapi</span></div>`;
+  } else {
+    const lo = L.min!==undefined? L.min : 0;
+    const hi = L.min!==undefined? L.max : 1;
+    el.innerHTML = `<b>${L.title}</b><div class="grad"></div>
+      <div class="scale-labels"><span>${lo}${L.key==="elevasi"?" m":L.key==="slope"?"°":""}</span>
+      <span>${hi}${L.key==="elevasi"?" m":L.key==="slope"?"°":""}</span></div>`;
+  }
+}
+
+function showTip(e,nama,kab,label){
+  tip.style.display="block";
+  tip.style.left=(e.offsetX+12)+"px";
+  tip.style.top=(e.offsetY+8)+"px";
+  tip.innerHTML=`<b>${nama}</b><br>${kab}<br>${LAYERS[current].title}: ${label}`;
+}
+function hideTip(){ tip.style.display="none"; }
+
+const controls=document.getElementById("controls");
+Object.keys(LAYERS).forEach(key=>{
+  const b=document.createElement("button");
+  b.className="layerBtn"+(key===current?" active":"");
+  b.textContent=LAYERS[key].title;
+  b.onclick=()=>{ current=key;
+    document.querySelectorAll(".layerBtn").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); render(); };
+  controls.appendChild(b);
+});
+render();
+</script>
+</body>
+</html>
